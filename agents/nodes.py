@@ -73,7 +73,7 @@ async def validator_node(state: PipelineTriageState, settings: Settings) -> Pipe
     """Apply the generated patch in an ephemeral workspace and run pytest."""
     set_context(step="validation")
     try:
-        with validation_workspace(state["repository_url"], state["commit_sha"]) as workspace:
+        with validation_workspace(state["repository_url"], settings.github_branch) as workspace:
             output, passed = run_docker_validation(workspace, state.get("patch_diff", ""), settings.pytest_timeout_seconds)
             logger.info("Patch validation completed", extra={"extra_data": {"passed": passed}})
             return {**state, "validation_output": output, "status": "validated" if passed else "validation_failed"}

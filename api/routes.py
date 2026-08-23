@@ -19,7 +19,12 @@ def create_router(graph: object | None, repository_name: str | None) -> APIRoute
         """Accept a failure event and start graph execution in the background."""
         if graph is None or not repository_name:
             raise HTTPException(status_code=503, detail="Service is not configured")
-        state = {**payload.model_dump(), "retry_count": 0, "status": "received", "repository_url": f"https://github.com/{repository_name}.git"}
+        state = {
+            **payload.model_dump(),
+            "retry_count": 0,
+            "status": "received",
+            "repository_url": payload.repository_url or f"https://github.com/{repository_name}.git",
+        }
         background_tasks.add_task(graph.ainvoke, state)
         return AcceptedResponse(status="accepted", run_id=payload.run_id)
 

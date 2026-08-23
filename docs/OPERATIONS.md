@@ -20,10 +20,10 @@ curl http://localhost:8000/health
 
 ## Failure Processing
 
-1. Databricks emits a failure event with the task, run, traceback, commit SHA, and Spark/Delta context.
+1. Databricks emits a failure event with the task, run, traceback, optional commit SHA, and Spark/Delta context.
 2. The webhook returns `202` and starts the LangGraph execution in the background.
 3. The classifier routes infrastructure failures to alerting or deterministic PySpark/Delta failures to RCA.
-4. The repair agent generates a unified diff against the exact commit.
+4. The repair agent generates a unified diff against the configured GitHub base branch.
 5. The validator applies the diff in a temporary Git checkout and runs `pytest -q`.
 6. Failed validation returns feedback to the fix agent until the three-attempt limit is reached.
 7. A passing repair creates a GitHub Issue and linked PR.
@@ -41,7 +41,7 @@ Build the validator image from the repository root:
 docker build -t autoheal-pyspark-validator:local sandbox
 ```
 
-Only the validation phase runs in Docker. The service first creates a temporary Git checkout at the failure commit. It then mounts that checkout read-only at `/workspace` and starts the validator with `--network=none`, `--read-only`, `--cap-drop=ALL`, a PID limit, and a temporary `/tmp`. The container copies the checkout into `/tmp`, applies the generated patch there, and runs `python -m pytest -q`; the temporary checkout and container are removed afterward.
+Only the validation phase runs in Docker. The service first creates a temporary Git checkout of the configured GitHub base branch. It then mounts that checkout read-only at `/workspace` and starts the validator with `--network=none`, `--read-only`, `--cap-drop=ALL`, a PID limit, and a temporary `/tmp`. The container copies the checkout into `/tmp`, applies the generated patch there, and runs `python -m pytest -q`; the temporary checkout and container are removed afterward.
 
 The image provides Python, Git, pytest, and PySpark. Install project-specific test dependencies in `sandbox/Dockerfile` before testing a real pipeline repository.
 
@@ -60,7 +60,7 @@ Required settings were not loaded. Check `GEMINI_API_KEY`, `GITHUB_TOKEN`, and `
 
 ### Patch validation fails
 
-Inspect the validation output in the graph state and GitHub Issue. Common causes are an incorrect target commit, a patch that does not apply cleanly, missing local PySpark dependencies, or a schema/test contract failure.
+Inspect the validation output in the graph state and GitHub Issue. Common causes are an incorrect base branch, a patch that does not apply cleanly, missing local PySpark dependencies, or a schema/test contract failure.
 
 ### GitHub PR creation fails
 

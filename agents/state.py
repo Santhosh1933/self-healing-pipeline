@@ -35,7 +35,8 @@ class FailureWebhookPayload(BaseModel):
     error_type: str = Field(min_length=1)
     error_message: str = Field(min_length=1)
     stack_trace: str = ""
-    commit_sha: str = Field(min_length=7)
+    commit_sha: str = ""
+    repository_url: str = "https://github.com/Santhosh1933/brazilian-data-etl-pipeline.git"
 
 
 class ClassificationResult(BaseModel):

@@ -13,18 +13,22 @@ SANDBOX_IMAGE = "autoheal-pyspark-validator:local"
 
 
 @contextmanager
-def validation_workspace(repository_url: str, commit_sha: str) -> Iterator[Path]:
-    """Clone ``repository_url`` at ``commit_sha`` into a temporary workspace."""
+def validation_workspace(repository_url: str, base_branch: str) -> Iterator[Path]:
+    """Clone ``repository_url`` at the configured base branch into a temporary workspace."""
     workspace_root = os.getenv("AUTOHEAL_WORKSPACE_ROOT")
     with tempfile.TemporaryDirectory(prefix="autoheal-validate-", dir=workspace_root) as directory:
         workspace = Path(directory)
         try:
             Repo.clone_from(repository_url, workspace)
-            checkout = subprocess.run(["git", "checkout", "--detach", commit_sha], cwd=workspace, text=True, capture_output=True, timeout=60, check=False)
+            checkout = subprocess.run(["git", "checkout", "--detach", base_branch], cwd=workspace, text=True, capture_output=True, timeout=60, check=False)
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise PatchApplicationError(f"Unable to create Git workspace: {exc}") from exc
         if checkout.returncode:
-            raise PatchApplicationError(checkout.stderr or checkout.stdout)
+            raise PatchApplicationError(
+                f"Base branch '{base_branch}' was not found in repository '{repository_url}'. "
+                "Check REPO_NAME and GITHUB_BRANCH.\n"
+                f"{checkout.stderr or checkout.stdout}"
+            )
         yield workspace
 
 

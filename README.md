@@ -11,7 +11,7 @@ AutoHeal-DataEngine is a personal self-healing service for PySpark data pipeline
 - YAML/Jinja2 prompt loading from `config/prompts.yaml`.
 - Typed workflow state in `agents/state.py`.
 - Structured JSON logs with run, job, task, step, and status context.
-- Ephemeral Git checkout at the failure commit SHA.
+- Ephemeral Git checkout at the configured GitHub base branch.
 - Docker-isolated patch application and PySpark `pytest` validation with a maximum of three attempts.
 - GitHub Issue and linked pull request creation after validation.
 - Human approval remains required before merge and deployment.
@@ -59,16 +59,18 @@ cp .env.example .env
 
 Set these values in `.env` or export them in the shell:
 
-| Variable                  | Description                                                                                         |
-| ------------------------- | --------------------------------------------------------------------------------------------------- |
-| `GEMINI_API_KEY`          | Google Gemini API key                                                                               |
-| `GITHUB_TOKEN`            | GitHub token or App token with branch, Issue, and PR permissions                                    |
-| `REPO_NAME`               | Repository in `owner/name` form                                                                     |
-| `GITHUB_BRANCH`           | Base branch, normally `main`                                                                        |
-| `GITHUB_BASE_URL`         | GitHub API URL; defaults to `https://api.github.com`                                                |
-| `PORT`                    | HTTP port; defaults to `8000`                                                                       |
-| `SANDBOX_IMAGE`           | Docker validator image; defaults to `autoheal-pyspark-validator:local`                              |
-| `AUTOHEAL_WORKSPACE_ROOT` | Temporary checkout parent; use a Docker-accessible path such as `/tmp` or a project-local directory |
+| Variable                    | Description                                                                                         |
+| --------------------------- | --------------------------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`            | Google Gemini API key                                                                               |
+| `GITHUB_TOKEN`              | GitHub token or App token with branch, Issue, and PR permissions                                    |
+| `REPO_NAME`                 | Repository in `owner/name` form                                                                     |
+| `GITHUB_BRANCH`             | Base branch, normally `main`                                                                        |
+| `GITHUB_BASE_URL`           | GitHub API URL; defaults to `https://api.github.com`                                                |
+| `PORT`                      | HTTP port; defaults to `8000`                                                                       |
+| `SANDBOX_IMAGE`             | Docker validator image; defaults to `autoheal-pyspark-validator:local`                              |
+| `AUTOHEAL_WORKSPACE_ROOT`   | Temporary checkout parent; use a Docker-accessible path such as `/tmp` or a project-local directory |
+| `AUTOHEAL_CLASSIFIER_MODEL` | Classifier model; defaults to `gemini-3.6-flash`                                                    |
+| `AUTOHEAL_REASONING_MODEL`  | RCA and patch model; defaults to `gemini-3.6-flash`                                                 |
 
 The service reads environment variables directly. For a local shell, load the file before starting:
 
@@ -88,7 +90,7 @@ Existing commands using `uvicorn app:app` continue to work through the compatibi
 
 ## Build and Test the Docker Sandbox
 
-The service runs on the host, while only patch application and repository tests run in Docker. The validator clones the exact failure commit into a temporary workspace, mounts that checkout read-only into a disposable container, copies it into the container's temporary filesystem, applies the generated diff, and runs `pytest`.
+The service runs on the host, while only patch application and repository tests run in Docker. For the MVP, the validator clones the configured GitHub base branch, mounts that checkout read-only into a disposable container, copies it into the container's temporary filesystem, applies the generated diff, and runs `pytest`.
 
 Build the image from the repository root:
 
@@ -112,7 +114,8 @@ The image includes Python, Git, pytest, and PySpark. Add repository-specific dep
   "error_type": "Py4JJavaError",
   "error_message": "AnalysisException: missing column customer_id",
   "stack_trace": "...",
-  "commit_sha": "0123456789abcdef0123456789abcdef01234567"
+  "commit_sha": "",
+  "repository_url": "https://github.com/Santhosh1933/brazilian-data-etl-pipeline.git"
 }
 ```
 
@@ -140,7 +143,7 @@ For PySpark failures, preserve the original Spark error class and underlying Jav
 
 ## Safety Boundaries
 
-- Generated patches are validated in a temporary checkout at the exact failure commit.
+- Generated patches are validated in a temporary checkout of the configured GitHub base branch.
 - The sandbox should not receive production credentials or write access to production systems.
 - Patches must remain limited to approved repository paths.
 - Secrets and sensitive data must be redacted before GitHub upload.
