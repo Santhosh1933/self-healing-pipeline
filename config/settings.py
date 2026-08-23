@@ -16,6 +16,8 @@ class Settings(BaseModel):
     max_repair_attempts: int = 3
     pytest_timeout_seconds: int = 300
     sandbox_image: str = "autoheal-pyspark-validator:local"
+    classifier_model: str = "gemini-3.6-flash"
+    reasoning_model: str = "gemini-3.6-flash"
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -24,7 +26,13 @@ class Settings(BaseModel):
         missing = [key for key, value in values.items() if not value]
         if missing:
             raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
-        values.update({"github_base_url": os.getenv("GITHUB_BASE_URL", "https://api.github.com"), "github_branch": os.getenv("GITHUB_BRANCH", "main"), "sandbox_image": os.getenv("SANDBOX_IMAGE", "autoheal-pyspark-validator:local")})
+        values.update({
+            "github_base_url": os.getenv("GITHUB_BASE_URL", "https://api.github.com"),
+            "github_branch": os.getenv("GITHUB_BRANCH", "main"),
+            "sandbox_image": os.getenv("SANDBOX_IMAGE", "autoheal-pyspark-validator:local"),
+            "classifier_model": os.getenv("AUTOHEAL_CLASSIFIER_MODEL", "gemini-3.6-flash"),
+            "reasoning_model": os.getenv("AUTOHEAL_REASONING_MODEL", "gemini-3.6-flash"),
+        })
         return cls(**values)
 
 

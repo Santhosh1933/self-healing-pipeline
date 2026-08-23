@@ -6,8 +6,8 @@ AutoHeal-DataEngine is a personal self-healing service for PySpark data pipeline
 
 - FastAPI service with `GET /health` and `POST /webhook/pipeline-failure`.
 - LangGraph workflow with conditional transient and code-defect paths.
-- Gemini `gemini-2.5-flash` for failure classification.
-- Gemini `gemini-2.5-pro` for PySpark/Databricks RCA and patch generation.
+- Gemini `gemini-3.6-flash` for failure classification.
+- Gemini `gemini-3.6-flash` for PySpark/Databricks RCA and patch generation by default. Set `AUTOHEAL_REASONING_MODEL` separately if your account provides another supported model.
 - YAML/Jinja2 prompt loading from `config/prompts.yaml`.
 - Typed workflow state in `agents/state.py`.
 - Structured JSON logs with run, job, task, step, and status context.

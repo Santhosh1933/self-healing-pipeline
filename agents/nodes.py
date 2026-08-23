@@ -46,7 +46,7 @@ async def classify_error_node(state: PipelineTriageState, settings: Settings) ->
     """Classify a failure as transient infrastructure or code defect."""
     set_context(run_id=state.get("run_id"), job_id=state.get("job_id"), task_key=state.get("task_key"), step="classification")
     system, human = prompts.render("classification", failure_context=_context(state))
-    result = await _model("gemini-2.5-flash", settings).with_structured_output(ClassificationResult).ainvoke([("system", system), ("human", human)])
+    result = await _model(settings.classifier_model, settings).with_structured_output(ClassificationResult).ainvoke([("system", system), ("human", human)])
     logger.info("Failure classified", extra={"extra_data": {"classification": result.classification}})
     return {**state, "classification": result.classification, "status": "classified"}
 
@@ -55,7 +55,7 @@ async def rca_discovery_node(state: PipelineTriageState, settings: Settings) -> 
     """Identify the root cause and relevant repository files."""
     set_context(step="rca")
     system, human = prompts.render("rca_discovery", failure_context=_context(state))
-    result = await _model("gemini-2.5-pro", settings).with_structured_output(RCAResult).ainvoke([("system", system), ("human", human)])
+    result = await _model(settings.reasoning_model, settings).with_structured_output(RCAResult).ainvoke([("system", system), ("human", human)])
     logger.info("Root cause analysis completed", extra={"extra_data": {"target_files": result.target_files}})
     return {**state, "root_cause": result.root_cause, "target_files": result.target_files, "status": "rca_complete"}
 
@@ -65,7 +65,7 @@ async def fix_generator_node(state: PipelineTriageState, settings: Settings) -> 
     attempt = state.get("retry_count", 0) + 1
     set_context(step="fix_generation", status=f"attempt_{attempt}")
     system, human = prompts.render("fix_generator", root_cause=state.get("root_cause", ""), target_files=", ".join(state.get("target_files", [])), validation_output=state.get("validation_output", ""), failure_context=_context(state))
-    response = await _model("gemini-2.5-pro", settings).ainvoke([("system", system), ("human", human)])
+    response = await _model(settings.reasoning_model, settings).ainvoke([("system", system), ("human", human)])
     return {**state, "patch_diff": _diff(response), "retry_count": attempt, "status": "patch_generated"}
 
 
