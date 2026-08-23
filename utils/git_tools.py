@@ -44,7 +44,7 @@ def run_docker_validation(workspace: Path, patch_diff: str, timeout_seconds: int
     patch_path.write_text(patch_diff, encoding="utf-8")
     command = [
         "docker", "run", "--rm", "--network=none", "--read-only",
-        "--tmpfs", "/tmp:rw,nosuid,size=1g", "--cap-drop=ALL",
+        "--tmpfs", "/tmp:rw,exec,nosuid,size=1g", "--cap-drop=ALL",
         "--pids-limit", "256",
         "-v", f"{workspace.resolve()}:/workspace:ro", image,
         "--workspace", "/workspace", "--patch", "/workspace/.autoheal.patch",
