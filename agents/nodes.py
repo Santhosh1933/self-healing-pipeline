@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from typing import Any
+from github import GithubException
 from langchain_google_genai import ChatGoogleGenerativeAI
 from config.settings import Settings
 from core.exceptions import LLMResponseParsingError
@@ -39,7 +40,70 @@ def _diff(response: Any) -> str:
     patch = (fenced.group(1) if fenced else text).strip()
     if not patch.startswith(("diff ", "--- ")):
         raise LLMResponseParsingError("Fix Generator returned an invalid unified diff")
-    return patch
+    return _normalize_hunks(patch)
+
+
+def _normalize_hunks(patch: str) -> str:
+    """Recalculate unified-diff hunk counts without changing file content."""
+    lines = patch.splitlines()
+    normalized = []
+    hunk_index = 0
+    while hunk_index < len(lines):
+        line = lines[hunk_index]
+        if line.startswith("--- ") and not line.startswith("--- a/") and not line.startswith("--- /dev/null"):
+            normalized.append(f"--- a/{line[4:]}")
+            hunk_index += 1
+            continue
+        if line.startswith("+++ ") and not line.startswith("+++ b/") and not line.startswith("+++ /dev/null"):
+            normalized.append(f"+++ b/{line[4:]}")
+            hunk_index += 1
+            continue
+        match = re.match(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$", line)
+        if not match:
+            normalized.append(line)
+            hunk_index += 1
+            continue
+        body_start = hunk_index + 1
+        body_end = body_start
+        while body_end < len(lines) and not lines[body_end].startswith("@@ ") and not lines[body_end].startswith("diff "):
+            body_end += 1
+        old_count = sum(not body_line.startswith("+") for body_line in lines[body_start:body_end] if not body_line.startswith("\\"))
+        new_count = sum(not body_line.startswith("-") for body_line in lines[body_start:body_end] if not body_line.startswith("\\"))
+        normalized.append(f"@@ -{match.group(1)},{old_count} +{match.group(3)},{new_count} @@{match.group(5)}")
+        normalized.extend(lines[body_start:body_end])
+        hunk_index = body_end
+    return "\n".join(normalized) + "\n"
+
+
+def _target_contents(state: PipelineTriageState, settings: Settings) -> str:
+    """Load target files from the configured GitHub branch for line-accurate fixes."""
+    repository = GitHubClient(settings).repository
+    sections = []
+    for relative_path in state.get("target_files", []):
+        content = _repository_file(repository, relative_path, settings.github_branch)
+        if isinstance(content, list):
+            continue
+        source = content.decoded_content.decode("utf-8")
+        numbered_source = "\n".join(f"{line_number:4} | {line}" for line_number, line in enumerate(source.splitlines(), 1))
+        sections.append(f"--- {relative_path} ---\n{numbered_source}")
+    return "\n\n".join(sections)
+
+
+def _repository_file(repository: Any, relative_path: str, branch: str) -> Any:
+    """Resolve package paths in repositories that use a ``src`` layout."""
+    candidates = [relative_path]
+    if not relative_path.startswith("src/"):
+        candidates.append(f"src/{relative_path}")
+    for candidate in candidates:
+        try:
+            content = repository.get_contents(candidate, ref=branch)
+        except GithubException as exc:
+            if exc.status == 404:
+                continue
+            raise
+        if not isinstance(content, list):
+            return content
+    return []
 
 
 async def classify_error_node(state: PipelineTriageState, settings: Settings) -> PipelineTriageState:
@@ -56,15 +120,20 @@ async def rca_discovery_node(state: PipelineTriageState, settings: Settings) -> 
     set_context(step="rca")
     system, human = prompts.render("rca_discovery", failure_context=_context(state))
     result = await _model(settings.reasoning_model, settings).with_structured_output(RCAResult).ainvoke([("system", system), ("human", human)])
-    logger.info("Root cause analysis completed", extra={"extra_data": {"target_files": result.target_files}})
-    return {**state, "root_cause": result.root_cause, "target_files": result.target_files, "status": "rca_complete"}
+    repository = GitHubClient(settings).repository
+    target_files = []
+    for relative_path in result.target_files:
+        content = _repository_file(repository, relative_path, settings.github_branch)
+        target_files.append(content.path if content else relative_path)
+    logger.info("Root cause analysis completed", extra={"extra_data": {"target_files": target_files}})
+    return {**state, "root_cause": result.root_cause, "target_files": target_files, "status": "rca_complete"}
 
 
 async def fix_generator_node(state: PipelineTriageState, settings: Settings) -> PipelineTriageState:
     """Generate a minimal patch using RCA and previous validation feedback."""
     attempt = state.get("retry_count", 0) + 1
     set_context(step="fix_generation", status=f"attempt_{attempt}")
-    system, human = prompts.render("fix_generator", root_cause=state.get("root_cause", ""), target_files=", ".join(state.get("target_files", [])), validation_output=state.get("validation_output", ""), failure_context=_context(state))
+    system, human = prompts.render("fix_generator", root_cause=state.get("root_cause", ""), target_files=", ".join(state.get("target_files", [])), target_contents=_target_contents(state, settings), validation_output=state.get("validation_output", ""), failure_context=_context(state))
     response = await _model(settings.reasoning_model, settings).ainvoke([("system", system), ("human", human)])
     return {**state, "patch_diff": _diff(response), "retry_count": attempt, "status": "patch_generated"}
 
@@ -75,6 +144,8 @@ async def validator_node(state: PipelineTriageState, settings: Settings) -> Pipe
     try:
         with validation_workspace(state["repository_url"], settings.github_branch) as workspace:
             output, passed = run_docker_validation(workspace, state.get("patch_diff", ""), settings.pytest_timeout_seconds)
+            if not passed and state.get("patch_diff", "").strip():
+                output = f"{output}\nGENERATED_PATCH:\n{state['patch_diff']}"
             logger.info("Patch validation completed", extra={"extra_data": {"passed": passed}})
             return {**state, "validation_output": output, "status": "validated" if passed else "validation_failed"}
     except Exception as exc:

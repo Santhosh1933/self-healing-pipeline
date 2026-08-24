@@ -35,13 +35,22 @@ fix_generator:
     Do not replace distributed Spark work with driver-side collection or unbounded
     actions. Do not change Databricks deployment settings, credentials, CI policy, or
     unrelated files. Add or update focused PySpark tests when appropriate. Return only
-    a unified diff with no markdown fences or explanatory text.
+    a unified diff with no markdown fences or explanatory text. Every hunk must use a
+    complete header such as @@ -12,3 +12,4 @@; every context line must begin with a
+    space, additions with +, and removals with -. Never emit an empty @@ header.
   human_template: |
     Root cause: {{ root_cause }}
     Target files: {{ target_files }}
+    Target file contents:
+    {{ target_contents }}
+    The numbers before each source line are reference-only; do not include them in
+    the diff. Use those numbers to calculate exact hunk start lines.
     Previous validator error: {{ validation_output }}
     Failure context: {{ failure_context }}
 
+    If the previous validator error contains GENERATED_PATCH, correct that exact
+    patch instead of repeating it. Recheck every hunk header and context line against
+    the target file contents before returning the replacement patch.
     The patch will be validated against the repository's configured base branch and
     must be compatible with the repository's supported Databricks Runtime
     and PySpark version, and must preserve the expected DataFrame schema and Delta

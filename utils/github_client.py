@@ -1,6 +1,7 @@
 """GitHub Issue and pull request operations."""
 
 from pathlib import Path
+import uuid
 from github import Github
 from git import Repo
 from config.settings import Settings
@@ -20,10 +21,10 @@ class GitHubClient:
     def create_repair_pr(self, state: dict[str, object]) -> tuple[str, str]:
         """Commit a validated patch and open a linked Issue and pull request."""
         base = self.repository.get_branch(self.settings.github_branch)
-        branch = f"autoheal/{state['run_id']}-{state['retry_count']}"
+        branch = f"autoheal/{state['run_id']}-{state['retry_count']}-{uuid.uuid4().hex[:12]}"
         self.repository.create_git_ref(ref=f"refs/heads/{branch}", sha=base.commit.sha)
         with tempfile_directory() as directory:
-            repo = Repo.clone_from(self.repository.clone_url, directory)
+            repo = Repo.clone_from(self.repository.clone_url, directory, branch=self.settings.github_branch)
             repo.git.checkout("-b", branch)
             patch_path = directory / ".autoheal.patch"
             patch_path.write_text(str(state["patch_diff"]), encoding="utf-8")
