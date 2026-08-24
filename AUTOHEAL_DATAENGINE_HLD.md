@@ -12,14 +12,14 @@ AutoHeal-DataEngine detects failures in Databricks data pipelines, classifies th
 - Capture task-level and end-of-DAG failure context with enough metadata to reproduce a failure.
 - Dispatch failure events asynchronously through Delta Change Data Feed (CDF).
 - Separate transient infrastructure failures from deterministic application failures.
-- Generate and validate repairs against the exact repository commit that produced the failure.
+- Generate and validate repairs against the configured GitHub base branch and supplied source commit metadata.
 - Preserve a complete audit trail in Delta logs, GitHub Issues, pull requests, and CI/CD records.
 - Keep production deployment behind deterministic validation and human approval.
 
 ## 2. Architecture Overview
 
 ```mermaid
-flowchart LR;
+flowchart TD;
     %% Production data execution
     subgraph DBX["Databricks Execution Environment"]
         DAG["Data Pipeline<br/>Multi-task DAG"];
@@ -216,7 +216,7 @@ The Discovery Agent assembles a structured diagnosis from the failure event, tra
 
 #### Ephemeral Git Workspace
 
-The workspace clones or fetches the repository at the exact target commit SHA. It creates a temporary branch for the proposed repair and is destroyed after the run. The source revision must be recorded in the issue and PR to preserve reproducibility.
+The workspace clones and fetches the configured GitHub base branch into a Docker-visible temporary directory. It is destroyed after the run. The source revision and branch must be recorded in the issue and PR to preserve reproducibility.
 
 #### Fix Generator Agent
 
@@ -297,7 +297,7 @@ GitHub Actions or the repository's existing CI/CD system reruns the full require
 
 ## 5. Reliability and Safety Controls
 
-- **Idempotency:** Use `failure_event_id`, source commit SHA, and an incident key to prevent duplicate processing.
+- **Idempotency:** Use `failure_event_id`, source commit SHA, and an incident key to prevent duplicate processing. Repair branch names include a UUID and tolerate rare GitHub reference collisions.
 - **Bounded retries:** Apply maximum retry counts for both infrastructure recovery and agent repair.
 - **Circuit breaker:** Pause automated repair when failure volume, repeated signatures, or sandbox errors exceed thresholds.
 - **Least privilege:** Give the consumer, sandbox, GitHub App, and deployment identity only the permissions they need.

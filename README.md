@@ -12,8 +12,9 @@ AutoHeal-DataEngine is a personal self-healing service for PySpark data pipeline
 - Typed workflow state in `agents/state.py`.
 - Structured JSON logs with run, job, task, step, and status context.
 - Ephemeral Git checkout at the configured GitHub base branch.
-- Docker-isolated patch application and PySpark `pytest` validation with a maximum of three attempts.
+- Docker-isolated patch application and PySpark `pytest` validation with a maximum of three attempts, with Python compilation fallback when no tests are present.
 - GitHub Issue and linked pull request creation after validation.
+- Repository path resolution for standard `src/` layouts and unique repair branch names.
 - Human approval remains required before merge and deployment.
 
 ## Repository Layout
@@ -59,18 +60,18 @@ cp .env.example .env
 
 Set these values in `.env` or export them in the shell:
 
-| Variable                    | Description                                                                                         |
-| --------------------------- | --------------------------------------------------------------------------------------------------- |
-| `GEMINI_API_KEY`            | Google Gemini API key                                                                               |
-| `GITHUB_TOKEN`              | GitHub token or App token with branch, Issue, and PR permissions                                    |
-| `REPO_NAME`                 | Repository in `owner/name` form                                                                     |
-| `GITHUB_BRANCH`             | Base branch, normally `main`                                                                        |
-| `GITHUB_BASE_URL`           | GitHub API URL; defaults to `https://api.github.com`                                                |
-| `PORT`                      | HTTP port; defaults to `8000`                                                                       |
-| `SANDBOX_IMAGE`             | Docker validator image; defaults to `autoheal-pyspark-validator:local`                              |
-| `AUTOHEAL_WORKSPACE_ROOT`   | Temporary checkout parent; use a Docker-accessible path such as `/tmp` or a project-local directory |
-| `AUTOHEAL_CLASSIFIER_MODEL` | Classifier model; defaults to `gemini-3.6-flash`                                                    |
-| `AUTOHEAL_REASONING_MODEL`  | RCA and patch model; defaults to `gemini-3.6-flash`                                                 |
+| Variable                    | Description                                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`            | Google Gemini API key                                                                                            |
+| `GITHUB_TOKEN`              | GitHub token or App token with branch, Issue, and PR permissions                                                 |
+| `REPO_NAME`                 | Repository in `owner/name` form                                                                                  |
+| `GITHUB_BRANCH`             | Base branch, normally `main`                                                                                     |
+| `GITHUB_BASE_URL`           | GitHub API URL; defaults to `https://api.github.com`                                                             |
+| `PORT`                      | HTTP port; defaults to `8000`                                                                                    |
+| `SANDBOX_IMAGE`             | Docker validator image; defaults to `autoheal-pyspark-validator:local`                                           |
+| `AUTOHEAL_WORKSPACE_ROOT`   | Temporary checkout parent; use a Docker-accessible project-local directory when Docker is installed through Snap |
+| `AUTOHEAL_CLASSIFIER_MODEL` | Classifier model; defaults to `gemini-3.6-flash`                                                                 |
+| `AUTOHEAL_REASONING_MODEL`  | RCA and patch model; defaults to `gemini-3.6-flash`                                                              |
 
 The service reads environment variables directly. For a local shell, load the file before starting:
 
@@ -90,7 +91,7 @@ Existing commands using `uvicorn app:app` continue to work through the compatibi
 
 ## Build and Test the Docker Sandbox
 
-The service runs on the host, while only patch application and repository tests run in Docker. For the MVP, the validator clones the configured GitHub base branch, mounts that checkout read-only into a disposable container, copies it into the container's temporary filesystem, applies the generated diff, and runs `pytest`.
+The service runs on the host, while only patch application and repository checks run in Docker. The validator clones the configured GitHub base branch, mounts that checkout read-only into a disposable container, copies it into the container's temporary filesystem, applies the generated diff, sets `PYTHONPATH=src` for `src`-layout projects, and runs `pytest`. If no pytest tests are discovered, it falls back to Python compilation checks.
 
 Build the image from the repository root:
 
@@ -156,7 +157,7 @@ For PySpark failures, preserve the original Spark error class and underlying Jav
 pytest -q
 ```
 
-The included tests cover classification routing and the three-attempt validation decision. Gemini, GitHub, Databricks, and Docker integrations require mocks or a configured integration environment for end-to-end testing.
+The included tests cover the individual service flows, payload handling, patch normalization, repository path resolution, validation decisions, and release branch behavior. Gemini, GitHub, Databricks, and Docker integrations require mocks or a configured integration environment for end-to-end testing.
 
 ## Related Design
 

@@ -24,7 +24,9 @@ curl http://localhost:8000/health
 2. The webhook returns `202` and starts the LangGraph execution in the background.
 3. The classifier routes infrastructure failures to alerting or deterministic PySpark/Delta failures to RCA.
 4. The repair agent generates a unified diff against the configured GitHub base branch.
-5. The validator applies the diff in a temporary Git checkout and runs `pytest -q`.
+5. The validator applies the diff in a temporary Git checkout, sets `PYTHONPATH=src`
+   for `src`-layout repositories, and runs `pytest -q`. If no pytest tests are
+   discovered, it falls back to Python compilation validation.
 6. Failed validation returns feedback to the fix agent until the three-attempt limit is reached.
 7. A passing repair creates a GitHub Issue and linked PR.
 8. Human review and CI/CD checks control deployment.
@@ -41,7 +43,7 @@ Build the validator image from the repository root:
 docker build -t autoheal-pyspark-validator:local sandbox
 ```
 
-Only the validation phase runs in Docker. The service first creates a temporary Git checkout of the configured GitHub base branch. It then mounts that checkout read-only at `/workspace` and starts the validator with `--network=none`, `--read-only`, `--cap-drop=ALL`, a PID limit, and a temporary `/tmp`. The container copies the checkout into `/tmp`, applies the generated patch there, and runs `python -m pytest -q`; the temporary checkout and container are removed afterward.
+Only the validation phase runs in Docker. The service first creates a temporary Git checkout of the configured GitHub base branch. It then mounts that checkout read-only at `/workspace` and starts the validator with `--network=none`, `--read-only`, `--cap-drop=ALL`, a PID limit, and a temporary `/tmp`. The container copies the checkout into `/tmp`, applies the generated patch there, sets `PYTHONPATH=src` for `src`-layout repositories, and runs `python -m pytest -q`; repositories without tests use Python compilation validation. The temporary checkout and container are removed afterward.
 
 The image provides Python, Git, pytest, and PySpark. Install project-specific test dependencies in `sandbox/Dockerfile` before testing a real pipeline repository.
 
@@ -64,7 +66,7 @@ Inspect the validation output in the graph state and GitHub Issue. Common causes
 
 ### GitHub PR creation fails
 
-Verify the token can read the repository, create branches, push commits, create Issues, and open pull requests. Confirm `REPO_NAME` and `GITHUB_BRANCH` are correct.
+Verify the token can read the repository, create unique branches, push commits, create Issues, and open pull requests. Confirm `REPO_NAME` and `GITHUB_BRANCH` are correct. PR creation clones `GITHUB_BRANCH`, not the repository default branch.
 
 ### Databricks failure is missing
 
