@@ -56,4 +56,4 @@ class tempfile_directory:
 
 def _issue_body(state: dict[str, object]) -> str:
     """Build the incident Issue body from workflow state."""
-    return f"## AutoHeal incident\n\nRun: `{state['run_id']}`\n\nCommit: `{state['commit_sha']}`\n\nRoot cause:\n{state.get('root_cause', '')}\n\nValidation:\n```text\n{state.get('validation_output', '')}\n```\n\nStack trace:\n```text\n{state.get('stack_trace', '')}\n```"
+    return f"## AutoHeal incident\n\nRun: `{state['run_id']}`\n\nRoot cause:\n{state.get('root_cause', '')}\n\nValidation:\n```text\n{state.get('validation_output', '')}\n```\n\nStack trace:\n```text\n{state.get('stack_trace', '')}\n```"

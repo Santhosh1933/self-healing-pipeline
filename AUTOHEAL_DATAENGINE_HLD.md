@@ -12,7 +12,7 @@ AutoHeal-DataEngine detects failures in Databricks data pipelines, classifies th
 - Capture task-level and end-of-DAG failure context with enough metadata to reproduce a failure.
 - Dispatch failure events asynchronously through Delta Change Data Feed (CDF).
 - Separate transient infrastructure failures from deterministic application failures.
-- Generate and validate repairs against the configured GitHub base branch and supplied source commit metadata.
+- Generate and validate repairs against the configured GitHub base branch.
 - Preserve a complete audit trail in Delta logs, GitHub Issues, pull requests, and CI/CD records.
 - Keep production deployment behind deterministic validation and human approval.
 
@@ -37,7 +37,7 @@ flowchart TD;
         LOGS[("Delta Lake<br/>task_failure_logs<br/>CDF enabled")];
     end
 
-    MON -->|Traceback, task key,<br/>commit SHA, runtime metadata| LOGS;
+    MON -->|Traceback, task key,<br/>runtime metadata| LOGS;
     FALLBACK -->|DAG failure context| LOGS;
 
     %% Backend classification and infra recovery
@@ -56,7 +56,7 @@ flowchart TD;
     %% Isolated AI repair workflow
     subgraph SANDBOX["Agentic Repair Sandbox<br/>Isolated Docker Workspace"]
         RCA["Discovery / RCA Agent"];
-        WORKSPACE["Ephemeral Git Workspace<br/>Target Commit SHA"];
+        WORKSPACE["Ephemeral Git Workspace<br/>Configured Base Branch"];
         FIX["Fix Generator Agent"];
         VALIDATOR["Local Test Validator<br/>PyTest / Syntax / Schema"];
         RETRYLOOP{"Validation passed?<br/>Attempts < 3"};
@@ -125,7 +125,7 @@ Each task should expose stable metadata including:
 - Workflow run ID and task run ID.
 - Task key and upstream dependency status.
 - Pipeline name and environment.
-- Repository, branch, and deployed commit SHA.
+- Repository and branch.
 - Cluster and runtime identifiers.
 - Start time, end time, and duration.
 
@@ -138,7 +138,7 @@ Captured fields should include:
 - A unique `failure_event_id`.
 - Error class, message, traceback, and normalized error signature.
 - Workflow, run, task, and attempt identifiers.
-- Commit SHA and repository metadata.
+- Repository and branch metadata.
 - Cluster, driver, executor, and runtime details where available.
 - Input/output table references and schema version.
 - Event timestamp and ingestion timestamp.
@@ -160,7 +160,7 @@ Logical schema:
 | `pipeline_name`, `environment`                     | Routing and policy context               |
 | `error_class`, `error_message`, `traceback`        | Failure evidence                         |
 | `error_signature`                                  | Stable grouping and deduplication key    |
-| `commit_sha`, `repository`                         | Reproduction source                      |
+| `repository`, `branch`                             | Reproduction source                      |
 | `cluster_id`, `runtime_version`                    | Infrastructure diagnosis                 |
 | `input_tables`, `output_tables`                    | Data and schema context                  |
 | `capture_mode`                                     | `decorator` or `fallback`                |
@@ -205,7 +205,7 @@ The sandbox runs in an isolated Docker workspace with no write access to product
 
 #### Discovery / RCA Agent
 
-The Discovery Agent assembles a structured diagnosis from the failure event, traceback, task metadata, deployed commit SHA, relevant repository files, recent related failures, and schema context. Its output is a bounded RCA summary containing:
+The Discovery Agent assembles a structured diagnosis from the failure event, traceback, task metadata, configured repository branch, relevant repository files, recent related failures, and schema context. Its output is a bounded RCA summary containing:
 
 - Reproduction hypothesis.
 - Suspected source locations.
@@ -238,7 +238,7 @@ The Fix Agent and validator form a feedback loop with a maximum of three attempt
 
 #### GitHub Issue Tracker
 
-A GitHub Issue is created for each repairable incident or deduplicated incident group. It includes the failure event ID, run links, full or securely referenced logs, traceback, RCA summary, target commit SHA, validator results, and risk classification.
+A GitHub Issue is created for each repairable incident or deduplicated incident group. It includes the failure event ID, run links, full or securely referenced logs, traceback, RCA summary, repository branch, validator results, and risk classification.
 
 #### GitHub Pull Request
 
@@ -287,7 +287,7 @@ GitHub Actions or the repository's existing CI/CD system reruns the full require
 
 1. The classifier routes a code, logic, data, or schema error to the Discovery Agent.
 2. The agent gathers failure context and identifies relevant source files.
-3. The workspace checks out the target commit SHA inside the isolated Docker sandbox.
+3. The workspace checks out the configured repository branch inside the isolated Docker sandbox.
 4. The Fix Agent proposes a patch.
 5. The Validator runs syntax, tests, lint, and schema checks.
 6. On failure, validator feedback returns to the Fix Agent; this repeats for at most three attempts.
@@ -297,7 +297,7 @@ GitHub Actions or the repository's existing CI/CD system reruns the full require
 
 ## 5. Reliability and Safety Controls
 
-- **Idempotency:** Use `failure_event_id`, source commit SHA, and an incident key to prevent duplicate processing. Repair branch names include a UUID and tolerate rare GitHub reference collisions.
+- **Idempotency:** Use `failure_event_id` and an incident key to prevent duplicate processing. Repair branch names include a UUID and tolerate rare GitHub reference collisions.
 - **Bounded retries:** Apply maximum retry counts for both infrastructure recovery and agent repair.
 - **Circuit breaker:** Pause automated repair when failure volume, repeated signatures, or sandbox errors exceed thresholds.
 - **Least privilege:** Give the consumer, sandbox, GitHub App, and deployment identity only the permissions they need.
@@ -345,11 +345,11 @@ Every component should emit structured logs with a shared `correlation_id`. Aler
 ## 9. Build Checks
 
 - A successful DAG run writes Silver and Gold outputs without creating a failure event.
-- A task exception creates one idempotent `task_failure_logs` record containing traceback, task metadata, and commit SHA.
+- A task exception creates one idempotent `task_failure_logs` record containing traceback and task metadata.
 - A cluster or driver crash is represented by the fallback task when task-level interception is unavailable.
 - A new failure record is consumed through Delta CDF and classified into the correct routing path.
 - Transient failures follow bounded retry and alert policy.
-- Deterministic failures reproduce against the target commit SHA in an isolated sandbox.
+- Deterministic failures reproduce against the configured repository branch in an isolated sandbox.
 - The validator stops after three failed repair attempts and escalates the incident.
 - A successful repair produces a GitHub Issue, linked PR, and recorded validation evidence.
 - Production deployment cannot proceed without human approval and CI/CD success.

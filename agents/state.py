@@ -14,7 +14,6 @@ class PipelineTriageState(TypedDict, total=False):
     error_type: str
     error_message: str
     stack_trace: str
-    commit_sha: str
     classification: Classification
     root_cause: str
     target_files: list[str]
@@ -35,7 +34,6 @@ class FailureWebhookPayload(BaseModel):
     error_type: str = Field(min_length=1)
     error_message: str = Field(min_length=1)
     stack_trace: str = ""
-    commit_sha: str = ""
     repository_url: str = "https://github.com/Santhosh1933/brazilian-data-etl-pipeline.git"
 
 

@@ -115,7 +115,6 @@ The image includes Python, Git, pytest, and PySpark. Add repository-specific dep
   "error_type": "Py4JJavaError",
   "error_message": "AnalysisException: missing column customer_id",
   "stack_trace": "...",
-  "commit_sha": "",
   "repository_url": "https://github.com/Santhosh1933/brazilian-data-etl-pipeline.git"
 }
 ```
@@ -138,7 +137,7 @@ validation failure (3 attempts) -> human escalation
 
 ## Databricks Integration
 
-The Databricks pipeline should send failure records containing the workflow run ID, job ID, task key, traceback, deployed commit SHA, and cluster/runtime metadata. Task-level capture should be implemented with `@monitor_task`; an end-of-DAG fallback using `run_if: AT_LEAST_ONE_FAILED` should cover driver and cluster crashes. The failure record can be emitted from the Delta `task_failure_logs` table through Change Data Feed or an equivalent webhook bridge.
+The Databricks pipeline should send failure records containing the workflow run ID, job ID, task key, traceback, and cluster/runtime metadata. Task-level capture should be implemented with `@monitor_task`; an end-of-DAG fallback using `run_if: AT_LEAST_ONE_FAILED` should cover driver and cluster crashes. The failure record can be emitted from the Delta `task_failure_logs` table through Change Data Feed or an equivalent webhook bridge.
 
 For PySpark failures, preserve the original Spark error class and underlying Java/Py4J cause. Include relevant table names, schema versions, stage/task identifiers, and Delta operation details when available.
 

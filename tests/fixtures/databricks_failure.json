@@ -6,7 +6,6 @@
   "error_type": "AnalysisException",
   "error_message": "[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `missing_business_column` cannot be resolved. SQLSTATE: 42703",
   "stack_trace": "Traceback (most recent call last):\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv/lib/python3.12/site-packages/brazilian_data_er/silver/demo_tasks.py\", line 75, in process_demo_quality_check\n    invalid_projection.limit(1).count()\n  pyspark.errors.exceptions.connect.AnalysisException: missing_business_column",
-  "commit_sha": "",
   "repository_url": "https://github.com/Santhosh1933/brazilian-data-etl-pipeline.git",
   "cluster_id": "0824-041528-s88r1g81-v2n",
   "spark_version": "4.1.0",

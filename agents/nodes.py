@@ -21,7 +21,7 @@ prompts = PromptLoader()
 
 def _context(state: PipelineTriageState) -> str:
     """Serialize failure fields for prompt rendering."""
-    keys = ("run_id", "job_id", "task_key", "error_type", "error_message", "stack_trace", "commit_sha")
+    keys = ("run_id", "job_id", "task_key", "error_type", "error_message", "stack_trace")
     return json.dumps({key: state.get(key, "") for key in keys}, indent=2)
 
 

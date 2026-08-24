@@ -20,7 +20,7 @@ curl http://localhost:8000/health
 
 ## Failure Processing
 
-1. Databricks emits a failure event with the task, run, traceback, optional commit SHA, and Spark/Delta context.
+1. Databricks emits a failure event with the task, run, traceback, and Spark/Delta context.
 2. The webhook returns `202` and starts the LangGraph execution in the background.
 3. The classifier routes infrastructure failures to alerting or deterministic PySpark/Delta failures to RCA.
 4. The repair agent generates a unified diff against the configured GitHub base branch.
